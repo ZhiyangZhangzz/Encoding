@@ -1,0 +1,48 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+*.ipynb
+
+# Virtual environments
+.venv/
+env/
+venv/
+.conda/
+*.egg-info/
+
+# Build / packaging
+build/
+dist/
+*.egg
+.eggs/
+
+# Logs / temp
+*.log
+*.tmp
+*.DS_Store
+
+# IDE / editor
+.vscode/
+.idea/
+
+# HuggingFace / model cache
+*.safetensors
+*.bin
+*.pt
+*.h5
+*.ckpt
+.cache/
+hf_cache/
+data/cache/
+
+# Environment variables
+.env
+
+# Output files
+ranking_results.csv
