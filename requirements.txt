@@ -12,3 +12,5 @@ numpy>=1.23.0
 
 # 其他依赖
 tqdm>=4.65.0
+python-dotenv>=1.0.0
+openai>=1.0.0

@@ -2,6 +2,7 @@ import os
 import json
 import pdfplumber
 from typing import List, Tuple
+import csv
 
 from src.resume_ranker.interface import Ranker
 
@@ -77,15 +78,66 @@ def main():
     job_desc = load_job_description(jd_file)
     resumes, resume_names, resume_pages = load_resumes(resumes_dir)
 
+
+    # # ===== CSV 输出准备 =====
+    # blend_values = [None, 0.0, 0.3, 0.5, 0.7, 1.0]
+    # output_rows = []
+
+    # # 创建一次 Ranker，避免每次循环都重新加载模型
+    # ranker = Ranker(model_cache_dir=cache_dir, device="cpu")
+    # ranker.load_models()
+
+    # for alpha in blend_values:
+    #     results = ranker.rank(
+    #         job_desc,
+    #         resumes,
+    #         top_k=min(30, len(resumes)),
+    #         cross_rerank_k=min(30, len(resumes)),
+    #         blend_alpha=alpha# alpha * biencoder + (1 - alpha) * cross_encoder
+    #     )
+
+    #     for i, r in enumerate(results):
+    #         idx = int(r.resume_index)
+    #         fname = resume_names[idx] if 0 <= idx < len(resume_names) else f"idx_{idx}"
+    #         output_rows.append({
+    #             "blend_alpha": alpha if alpha is not None else "cross_only",
+    #             "rank": i + 1,
+    #             "file": fname,
+    #             "score": float(r.score),
+    #             "bi_score": float(r.bi_score) if r.bi_score is not None else None,
+    #             "cross_score": float(r.cross_score) if r.cross_score is not None else None,
+    #             "final_score": float(r.final_score) if r.final_score is not None else None,
+    #             "pages": int(resume_pages[idx]) if 0 <= idx < len(resume_pages) else None,
+    #             "meta": r.meta
+    #         })
+
+    # # ===== 写入 CSV =====
+    # csv_file = os.path.join(os.getcwd(), "ranking_results.csv")
+    # with open(csv_file, mode="w", newline="", encoding="utf-8") as f:
+    #     writer = csv.DictWriter(f, fieldnames=[
+    #         "blend_alpha", "rank", "file", "score", "bi_score", "cross_score", "final_score", "pages", "meta"
+    #     ])
+    #     writer.writeheader()
+    #     writer.writerows(output_rows)
+
+    # print(f"✅ 排名结果已保存到: {csv_file}")
     # ===== 排序 =====
-    # 明确使用 CPU，避免 CPU 版 torch 误用 CUDA 报错
-    ranker = Ranker(model_cache_dir=cache_dir, device="cpu")
+    ranker = Ranker(
+        model_cache_dir=cache_dir,
+        device="cpu"
+    )
+    print("🔍 Using Bi-Encoder model:", ranker.bi.model_name)
+    if ranker.cross:
+        print("🔍 Using Cross-Encoder model:", ranker.cross.model_name)
+    else:
+        print("⚠ No Cross-Encoder loaded")
+
     ranker.load_models()
     results = ranker.rank(
         job_desc,
         resumes,
-        top_k=min(5, len(resumes)),
-        cross_rerank_k=min(3, len(resumes)),
+        top_k=min(30, len(resumes)),
+        cross_rerank_k=min(15, len(resumes)),
         blend_alpha=0.5
     )
 
@@ -111,4 +163,5 @@ def main():
 
 
 if __name__ == "__main__":
+    print("🔍 Starting Resume Ranker...")
     main()

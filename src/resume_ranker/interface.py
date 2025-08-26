@@ -19,6 +19,7 @@ class RankResult:
     bi_score: Optional[float] = None
     cross_score: Optional[float] = None
     meta: Optional[dict] = None
+    field_scores: Optional[Dict[str, float]] = None
 
 
 class Ranker:
@@ -30,8 +31,8 @@ class Ranker:
     """
     def __init__(
         self,
-        bi_model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-        cross_model_name: Optional[str] = "cross-encoder/ms-marco-MiniLM-L-6-v2",
+        bi_model_name: str = "sentence-transformers/all-mpnet-base-v2",  # 换成你想要的模型
+        cross_model_name: Optional[str] = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
         model_cache_dir: Optional[str] = None,
         device: Optional[str] = None,
     ):
@@ -54,7 +55,7 @@ class Ranker:
         self.bi.load()
         if self.cross:
             self.cross.load()
-
+    
     def encode(self, job_desc: str, resumes: Iterable[str]) -> dict[str, np.ndarray]:
         """
         返回：{"jd": [1, d], "res": [N, d]}
@@ -148,3 +149,67 @@ class Ranker:
                 )
             )
         return results
+    
+
+    def rank_with_fields(
+        self,
+        jd_json: dict,
+        resumes_json: List[dict],
+        weights: Optional[Dict[str, float]] = None,
+        top_k: int = 10,
+    ) -> List[RankResult]:
+        """
+        基于结构化 JSON 做分字段打分 + 排序
+        """
+        if not weights:
+            weights = {"skills": 0.4, "experience": 0.5, "education": 0.1}
+
+        results: List[RankResult] = []
+
+        for idx, res_json in enumerate(resumes_json):
+            field_scores: Dict[str, float] = {}
+
+            # ===== Skills 相似度 =====
+            if jd_json.get("skills") and res_json.get("skills"):
+                jd_vec = self.bi.encode([jd_json["skills"]], normalize=True)   # shape [1, d]
+                res_vec = self.bi.encode([res_json["skills"]], normalize=True) # shape [1, d]
+                sim = cosine_sim_matrix(jd_vec, res_vec)[0][0]
+                field_scores["skills"] = float(sim)
+
+            # ===== Requirements vs Experience 相似度 =====
+            if jd_json.get("requirements") and res_json.get("experience"):
+                jd_req = "; ".join(jd_json["requirements"])
+                res_exp = "; ".join([
+                    f"{e.get('position','')} at {e.get('company','')} ({e.get('years','')})"
+                    for e in res_json["experience"]
+                ])
+                jd_vec = self.bi.encode([jd_req], normalize=True)
+                res_vec = self.bi.encode([res_exp], normalize=True)
+                sim = cosine_sim_matrix(jd_vec, res_vec)[0][0]
+                field_scores["experience"] = float(sim)
+
+            # ===== Education 相似度 =====
+            if jd_json.get("education") and res_json.get("education"):
+                jd_edu = f"{jd_json['education'].get('degree','')} at {jd_json['education'].get('school','')}"
+                res_edu = f"{res_json['education'].get('degree','')} at {res_json['education'].get('school','')}"
+                jd_vec = self.bi.encode([jd_edu], normalize=True)
+                res_vec = self.bi.encode([res_edu], normalize=True)
+                sim = cosine_sim_matrix(jd_vec, res_vec)[0][0]
+                field_scores["education"] = float(sim)
+
+            # ===== 加权求和 =====
+            total = sum(weights.get(k, 0) * v for k, v in field_scores.items())
+
+            results.append(
+                RankResult(
+                    resume_index=idx,
+                    score=total,
+                    final_score=total,
+                    field_scores=field_scores,
+                    meta=res_json,
+                )
+            )
+
+        # 排序
+        results.sort(key=lambda r: -r.score)
+        return results[:top_k]

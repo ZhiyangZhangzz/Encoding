@@ -10,7 +10,7 @@ class SBERTBiEncoder(BiEncoder):
     """
     def __init__(
         self,
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        model_name: str = "sentence-transformers/all-roberta-large-v1",
         model_cache_dir: Optional[str] = None,
         device: Optional[str] = None,
     ):
@@ -33,4 +33,4 @@ class SBERTBiEncoder(BiEncoder):
             batch_size=batch_size,
             normalize_embeddings=normalize,
             convert_to_numpy=True,
-        ).tolist()
+        )
